@@ -51,10 +51,16 @@ Tech stack
 - NAudio CoreAudio/WASAPI for endpoint selection, volume, playback
 
 Configuration file (optional)
-- Place `BtTakeover.config.json` next to `BtTakeover.exe`. If present, the app loads defaults for the device ID and WAV path at startup.
+- Place `BtTakeover.config.json` next to `BtTakeover.exe`. If present, the app loads defaults for the device ID and WAV path at startup and can auto-start playback.
+- `AutoStart` (default true when omitted) triggers scan/pair and playback on launch if both `BluetoothId` and a valid `AudioFile` are set.
+- `Loop` (default true when omitted) controls whether auto-start playback loops continuously.
+- `VolumePercent` (default 100) sets a linear gain multiplier applied in software on top of the endpoint volume. Values >100 enable overdrive (e.g., 180 = 1.8x). High values may clip and be extremely loud. Capped at 250%.
 - Relative `AudioFile` paths are resolved relative to the EXE folder.
 - Example `BtTakeover.config.json`:
   {
+    "AutoStart": true,
+    "Loop": true,
+    "VolumePercent": 100,
     "BluetoothId": "00:1A:7D:DA:71:13",
     "AudioFile": "alert.wav"
   }

@@ -15,6 +15,8 @@ public partial class MainForm : Form
     private string? _lastFoundDeviceName;
     private bool _isPlaying = false;
     private System.Threading.CancellationTokenSource? _playCts;
+    private AppConfig? _config;
+    private bool _autoStartTriggered = false;
 
     public MainForm()
     {
@@ -147,18 +149,19 @@ public partial class MainForm : Form
             Log("Setting endpoint volume to 100%...");
             _audio.SetEndpointVolume100(endpoint);
 
-            Log(chkLoop.Checked ? "Playing WAV on loop (VERY LOUD)..." : "Playing WAV (VERY LOUD)...");
+            var gain = GetConfiguredGain();
+            Log(chkLoop.Checked ? $"Playing WAV on loop (gain x{gain:0.##})..." : $"Playing WAV (gain x{gain:0.##})...");
             _isPlaying = true;
             _playCts = new System.Threading.CancellationTokenSource();
             SetUiPlaying(true);
 
             if (chkLoop.Checked)
             {
-                await Task.Run(() => _audio.PlayWavToEndpointLoop(endpoint, wav, _playCts!.Token));
+                await Task.Run(() => _audio.PlayWavToEndpointLoop(endpoint, wav, _playCts!.Token, gain));
             }
             else
             {
-                await Task.Run(() => _audio.PlayWavToEndpoint(endpoint, wav, _playCts!.Token));
+                await Task.Run(() => _audio.PlayWavToEndpoint(endpoint, wav, _playCts!.Token, gain));
             }
 
             Log("Playback finished.");
@@ -210,6 +213,7 @@ public partial class MainForm : Form
             if (loaded is { } tuple)
             {
                 var (cfg, path) = tuple;
+                _config = cfg;
                 if (!string.IsNullOrWhiteSpace(cfg.BluetoothId))
                 {
                     txtDeviceId.Text = cfg.BluetoothId;
@@ -218,12 +222,187 @@ public partial class MainForm : Form
                 {
                     txtWavPath.Text = cfg.AudioFile;
                 }
+                chkLoop.Checked = cfg.Loop ?? true;
                 Log($"Loaded configuration from {System.IO.Path.GetFileName(path)}.");
             }
         }
         catch (Exception ex)
         {
             Log($"Config load error: {ex.Message}");
+        }
+    }
+
+    protected override async void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        if (_autoStartTriggered) return;
+        _autoStartTriggered = true;
+
+        var cfg = _config;
+        // Only attempt autostart if a config file was present
+        if (cfg == null)
+            return;
+
+        var autoStart = cfg.AutoStart ?? true; // default true
+        if (!autoStart)
+        {
+            Log("AutoStart disabled by config.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(cfg.BluetoothId))
+        {
+            Log("AutoStart: BluetoothId missing in config; skipping.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(cfg.AudioFile) || !System.IO.File.Exists(cfg.AudioFile))
+        {
+            Log("AutoStart: AudioFile missing or not found; skipping.");
+            return;
+        }
+
+        // Ensure UI reflects config
+        txtDeviceId.Text = cfg.BluetoothId!;
+        txtWavPath.Text = cfg.AudioFile!;
+
+        var scanned = await ScanAndPairAsync(cfg.BluetoothId!);
+        if (!scanned)
+            return;
+
+        var gain = GetConfiguredGain();
+        await StartPlaybackAsync(cfg.AudioFile!, loop: cfg.Loop ?? true, gain: gain);
+    }
+
+    private async Task<bool> ScanAndPairAsync(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+
+        btnScanPair.Enabled = false;
+        Log("Scanning for Bluetooth devices (can take ~30s)...");
+        try
+        {
+            var mac = ParseMac(raw);
+            var result = await Task.Run(() => _bt.FindDevice(mac, raw));
+            if (result == null)
+            {
+                Log("Device not found. Try bringing it closer or re-scan.");
+                return false;
+            }
+
+            _lastFoundDeviceName = result.DeviceName;
+            Log($"Found device: {result.DeviceName} [{result.DeviceAddress}]; Paired={result.Authenticated}");
+
+            if (!result.Authenticated)
+            {
+                Log("Attempting to pair...");
+                var paired = await Task.Run(() => _bt.Pair(result));
+                Log(paired ? "Paired successfully." : "Pairing failed or was declined.");
+            }
+            else
+            {
+                Log("Already paired.");
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log($"Error during scan/pair: {ex.Message}");
+            return false;
+        }
+        finally
+        {
+            btnScanPair.Enabled = true;
+        }
+    }
+
+    private async Task StartPlaybackAsync(string wav, bool loop, float gain)
+    {
+        if (!System.IO.File.Exists(wav))
+        {
+            Log("Audio file not found.");
+            return;
+        }
+
+        var targetName = _lastFoundDeviceName;
+        if (string.IsNullOrWhiteSpace(targetName))
+        {
+            var raw = (txtDeviceId.Text ?? string.Empty).Trim();
+            var mac = ParseMac(raw);
+            if (!string.IsNullOrWhiteSpace(mac))
+            {
+                targetName = null; // prefer MAC-based endpoint match if possible
+            }
+            else
+            {
+                targetName = raw; // name contains snippet
+            }
+        }
+
+        Log("Locating audio endpoint for device...");
+        try
+        {
+            var endpoint = _audio.FindRenderEndpoint(targetName);
+            if (endpoint == null)
+            {
+                Log("Audio endpoint not found. Ensure the device is paired and its A2DP endpoint is available.");
+                return;
+            }
+
+            Log($"Using endpoint: {endpoint.FriendlyName}");
+            Log("Setting endpoint volume to 100%...");
+            _audio.SetEndpointVolume100(endpoint);
+
+            Log(loop ? $"Playing WAV on loop (gain x{gain:0.##})..." : $"Playing WAV (gain x{gain:0.##})...");
+            _isPlaying = true;
+            _playCts = new System.Threading.CancellationTokenSource();
+            SetUiPlaying(true);
+
+            if (loop)
+            {
+                await Task.Run(() => _audio.PlayWavToEndpointLoop(endpoint, wav, _playCts!.Token, gain));
+            }
+            else
+            {
+                await Task.Run(() => _audio.PlayWavToEndpoint(endpoint, wav, _playCts!.Token, gain));
+            }
+
+            Log("Playback finished.");
+        }
+        catch (Exception ex)
+        {
+            Log($"Playback error: {ex.Message}");
+        }
+        finally
+        {
+            _isPlaying = false;
+            _playCts?.Dispose();
+            _playCts = null;
+            SetUiPlaying(false);
+        }
+    }
+
+    private float GetConfiguredGain()
+    {
+        try
+        {
+            var percent = _config?.VolumePercent ?? 100;
+            if (percent > 250)
+            {
+                Log($"VolumePercent {percent}% exceeds max; capping to 250%.");
+                percent = 250;
+            }
+            if (percent < 0)
+            {
+                Log($"VolumePercent {percent}% below 0; treating as mute.");
+                percent = 0;
+            }
+            if (percent <= 0) return 0f;
+            // Allow overdrive beyond 100%
+            return percent / 100f;
+        }
+        catch
+        {
+            return 1.0f;
         }
     }
 }

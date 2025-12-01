@@ -8,6 +8,9 @@ public class AppConfig
 {
     public string? BluetoothId { get; set; }
     public string? AudioFile { get; set; }
+    public bool? AutoStart { get; set; }
+    public bool? Loop { get; set; }
+    public int? VolumePercent { get; set; }
 
     public static (AppConfig config, string path)? LoadFromExeDirectory()
     {
@@ -20,6 +23,11 @@ public class AppConfig
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         var cfg = JsonSerializer.Deserialize<AppConfig>(json, options) ?? new AppConfig();
 
+        // Defaults when omitted
+        cfg.AutoStart ??= true;
+        cfg.Loop ??= true;
+        cfg.VolumePercent ??= 100;
+
         // Resolve relative audio file paths against the exe directory
         if (!string.IsNullOrWhiteSpace(cfg.AudioFile) && !Path.IsPathRooted(cfg.AudioFile))
         {
@@ -29,4 +37,3 @@ public class AppConfig
         return (cfg, path);
     }
 }
-
