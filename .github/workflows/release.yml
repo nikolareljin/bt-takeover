@@ -1,0 +1,155 @@
+name: Release Windows Binary
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore src/BtTakeover.csproj
+
+      - name: Publish win-x64 (single-file, self-contained)
+        run: |
+          dotnet publish src/BtTakeover.csproj -c Release -r win-x64 \
+            /p:PublishSingleFile=true /p:SelfContained=true /p:IncludeNativeLibrariesForSelfExtract=true \
+            -o publish/win-x64
+
+      - name: Prepare artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item -Path publish/win-x64/BtTakeover.exe -Destination dist/
+          if (Test-Path 'BtTakeover.config.sample.json') { Copy-Item 'BtTakeover.config.sample.json' dist/ }
+          Copy-Item README.md dist/
+          $tag = "$env:GITHUB_REF_NAME"
+          $zip = "BtTakeover-$tag-win-x64.zip"
+          Compress-Archive -Path dist/* -DestinationPath $zip
+          echo "ZIP_NAME=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Create MSIX (pack + sign)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = "$env:GITHUB_REF_NAME"
+          if ($tag.StartsWith('v')) { $ver = $tag.Substring(1) } else { $ver = $tag }
+          if (-not ($ver -match '^\d+\.\d+\.\d+')) { $ver = '1.0.0' }
+          $msixVersion = "$ver.0"
+
+          $stage = Join-Path $PWD 'msix\stage'
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item -Recurse -Force publish/win-x64/* $stage/
+          New-Item -ItemType Directory -Force -Path (Join-Path $stage 'Images') | Out-Null
+
+          function New-Icon([string]$path, [int]$w, [int]$h) {
+            Add-Type -AssemblyName System.Drawing
+            $bmp = New-Object System.Drawing.Bitmap $w, $h
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.Clear([System.Drawing.Color]::FromArgb(0,122,204))
+            $font = New-Object System.Drawing.Font 'Segoe UI', ([float]($h * 0.36)), [System.Drawing.FontStyle]::Bold
+            $sf = New-Object System.Drawing.StringFormat
+            $sf.Alignment = 'Center'; $sf.LineAlignment = 'Center'
+            $g.DrawString('BT', $font, [System.Drawing.Brushes]::White, (New-Object System.Drawing.RectangleF(0,0,$w,$h)), $sf)
+            $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+            $g.Dispose(); $bmp.Dispose(); $font.Dispose(); $sf.Dispose()
+          }
+
+          New-Icon (Join-Path $stage 'Images\Square44x44Logo.png') 44 44
+          New-Icon (Join-Path $stage 'Images\Square150x150Logo.png') 150 150
+          New-Icon (Join-Path $stage 'Images\Square310x310Logo.png') 310 310
+          New-Icon (Join-Path $stage 'Images\Wide310x150Logo.png') 310 150
+
+          $manifest = @"
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+         xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+         IgnorableNamespaces="uap desktop rescap">
+  <Identity Name="com.bttakeover.app"
+            Publisher="CN=BtTakeover"
+            Version="$msixVersion"
+            ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>BtTakeover</DisplayName>
+    <PublisherDisplayName>BtTakeover</PublisherDisplayName>
+    <Description>Scan/pair Bluetooth device and play WAV at high volume to reclaim your own headphones.</Description>
+    <Logo>Images\Square150x150Logo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Applications>
+    <Application Id="BtTakeover"
+                 Executable="BtTakeover.exe"
+                 EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="BtTakeover" Square150x150Logo="Images\Square150x150Logo.png" Square44x44Logo="Images\Square44x44Logo.png" Description="BtTakeover" BackgroundColor="#007ACC">
+        <uap:DefaultTile Square310x310Logo="Images\Square310x310Logo.png" Wide310x150Logo="Images\Wide310x150Logo.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <desktop:Extension Category="windows.fullTrustProcess" Executable="BtTakeover.exe" />
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>
+"@
+          Set-Content -LiteralPath (Join-Path $stage 'AppxManifest.xml') -Value $manifest -Encoding UTF8
+
+          # Locate MakeAppx and SignTool
+          function Find-Tool([string]$name) {
+            $candidates = @(
+              "$name.exe",
+              "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\x64\\$name.exe",
+              "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.22621.0\\x64\\$name.exe",
+              "C:\\Program Files (x86)\\Windows Kits\\10\\App Certification Kit\\$name.exe"
+            )
+            foreach ($c in $candidates) { if (Get-Command $c -ErrorAction SilentlyContinue) { return (Get-Command $c).Source } }
+            throw "Tool not found: $name"
+          }
+
+          $makeappx = Find-Tool 'makeappx'
+          $signtool = Find-Tool 'signtool'
+
+          $msixName = "BtTakeover-$tag-win-x64.msix"
+          & $makeappx pack /d $stage /p $msixName | Write-Output
+
+          New-Item -ItemType Directory -Force -Path signing | Out-Null
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=BtTakeover" -CertStoreLocation "Cert:\\CurrentUser\\My" -NotAfter (Get-Date).AddYears(2)
+          $pwd = ConvertTo-SecureString -String 'bt-takeover' -Force -AsPlainText
+          $pfxPath = Join-Path $PWD 'signing\\BtTakeover.pfx'
+          $cerPath = Join-Path $PWD 'signing\\BtTakeover.cer'
+          Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $pwd | Out-Null
+          Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
+
+          & $signtool sign /fd SHA256 /f $pfxPath /p 'bt-takeover' $msixName | Write-Output
+          echo "MSIX_NAME=$msixName" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            ${{ env.ZIP_NAME }}
+            ${{ env.MSIX_NAME }}
+            signing/BtTakeover.cer
+          generate_release_notes: true
+          token: ${{ secrets.GITHUB_TOKEN }}

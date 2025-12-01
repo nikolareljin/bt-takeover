@@ -17,6 +17,7 @@ public partial class MainForm : Form
     private System.Threading.CancellationTokenSource? _playCts;
     private AppConfig? _config;
     private bool _autoStartTriggered = false;
+    private System.Threading.CancellationTokenSource? _autoScanCts;
 
     public MainForm()
     {
@@ -265,12 +266,46 @@ public partial class MainForm : Form
         txtDeviceId.Text = cfg.BluetoothId!;
         txtWavPath.Text = cfg.AudioFile!;
 
-        var scanned = await ScanAndPairAsync(cfg.BluetoothId!);
-        if (!scanned)
-            return;
+        if ((cfg.Persistent ?? true))
+        {
+            Log($"AutoStart: Persistent scan enabled (every {cfg.RescanSeconds ?? 30}s).");
+            _autoScanCts = new System.Threading.CancellationTokenSource();
+            _ = AutoScanLoopAsync(cfg, _autoScanCts.Token);
+        }
+        else
+        {
+            var scanned = await ScanAndPairAsync(cfg.BluetoothId!);
+            if (!scanned)
+                return;
 
-        var gain = GetConfiguredGain();
-        await StartPlaybackAsync(cfg.AudioFile!, loop: cfg.Loop ?? true, gain: gain);
+            var gain = GetConfiguredGain();
+            await StartPlaybackAsync(cfg.AudioFile!, loop: cfg.Loop ?? true, gain: gain);
+        }
+    }
+
+    private async Task AutoScanLoopAsync(AppConfig cfg, System.Threading.CancellationToken token)
+    {
+        var delayMs = Math.Max(5, (cfg.RescanSeconds ?? 30)) * 1000;
+        while (!token.IsCancellationRequested)
+        {
+            try
+            {
+                if (!_isPlaying)
+                {
+                    var scanned = await ScanAndPairAsync(cfg.BluetoothId!);
+                    if (scanned)
+                    {
+                        var gain = GetConfiguredGain();
+                        await StartPlaybackAsync(cfg.AudioFile!, loop: (cfg.Loop ?? true), gain: gain);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Auto-scan loop error: {ex.Message}");
+            }
+            await Task.Delay(delayMs);
+        }
     }
 
     private async Task<bool> ScanAndPairAsync(string raw)
@@ -404,5 +439,11 @@ public partial class MainForm : Form
         {
             return 1.0f;
         }
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        try { _autoScanCts?.Cancel(); } catch { }
+        base.OnFormClosing(e);
     }
 }

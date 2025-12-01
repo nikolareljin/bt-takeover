@@ -54,13 +54,28 @@ Configuration file (optional)
 - Place `BtTakeover.config.json` next to `BtTakeover.exe`. If present, the app loads defaults for the device ID and WAV path at startup and can auto-start playback.
 - `AutoStart` (default true when omitted) triggers scan/pair and playback on launch if both `BluetoothId` and a valid `AudioFile` are set.
 - `Loop` (default true when omitted) controls whether auto-start playback loops continuously.
+- `Persistent` (default true when omitted) makes the app rescan periodically until the device is found; useful for USB “drop-in” usage.
+- `RescanSeconds` (default 30) interval between scans in persistent mode.
 - `VolumePercent` (default 100) sets a linear gain multiplier applied in software on top of the endpoint volume. Values >100 enable overdrive (e.g., 180 = 1.8x). High values may clip and be extremely loud. Capped at 250%.
 - Relative `AudioFile` paths are resolved relative to the EXE folder.
 - Example `BtTakeover.config.json`:
   {
     "AutoStart": true,
     "Loop": true,
+    "Persistent": true,
+    "RescanSeconds": 30,
     "VolumePercent": 100,
     "BluetoothId": "00:1A:7D:DA:71:13",
     "AudioFile": "alert.wav"
   }
+
+CI/CD (releases)
+- Pushing a tag like `v1.2.3` builds:
+  - A Windows 11 (win-x64) self-contained single-file EXE ZIP.
+  - An MSIX package (signed with a CI self-signed certificate) for side-loading.
+- The ZIP includes `BtTakeover.exe`, `BtTakeover.config.sample.json`, and `README.md`.
+- The release also contains the MSIX and a `BtTakeover.cer` you can install to trust the package.
+
+MSIX install notes
+- Side-loading: install `BtTakeover.cer` to Local Machine > Trusted People, then double-click the `.msix` or use `Add-AppxPackage`.
+- Windows 11 S Mode: does not allow side-loading or running desktop EXEs. To run on S Mode, the app must be distributed via the Microsoft Store and signed with a Store certificate.

@@ -11,6 +11,8 @@ public class AppConfig
     public bool? AutoStart { get; set; }
     public bool? Loop { get; set; }
     public int? VolumePercent { get; set; }
+    public bool? Persistent { get; set; }
+    public int? RescanSeconds { get; set; }
 
     public static (AppConfig config, string path)? LoadFromExeDirectory()
     {
@@ -27,6 +29,8 @@ public class AppConfig
         cfg.AutoStart ??= true;
         cfg.Loop ??= true;
         cfg.VolumePercent ??= 100;
+        cfg.Persistent ??= true;
+        cfg.RescanSeconds ??= 30;
 
         // Resolve relative audio file paths against the exe directory
         if (!string.IsNullOrWhiteSpace(cfg.AudioFile) && !Path.IsPathRooted(cfg.AudioFile))
