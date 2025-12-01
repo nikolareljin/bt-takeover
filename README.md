@@ -35,7 +35,16 @@ Usage
      - Name snippet: e.g., `WH-1000XM4` (will match by device name if MAC not detected).
    - Click “Scan & Pair”. Once found/paired, choose your `.wav` via Browse.
    - Optionally enable “Loop”.
-   - Click “Play (Max Volume)” to set the endpoint volume to 100% and play the WAV to that device. While playing, the button becomes “Stop”.
+  - Click “Play (Max Volume)” to set the endpoint volume to 100% and play the WAV to that device. While playing, the button becomes “Stop”.
+
+Build scripts (cross‑platform)
+- Linux/macOS: `./build.sh` (options: `-c Debug|Release`, `--publish true|false`, `-r win-x64`)
+- Windows PowerShell: `./build.ps1` (params: `-Configuration Debug|Release`, `-Publish:$true|$false`, `-Runtime win-x64`)
+- Both scripts auto‑use `script-helpers` if present (git submodule `git@github.com:nikolareljin/script-helpers.git`).
+
+Submodules
+- Initialize locally: `git submodule update --init --recursive`
+- In CI, workflows fetch submodules automatically and fall back to cloning if the submodule is not yet committed.
 
 Limitations & tips
 - If the headphones are actively connected to another device, Windows usually cannot take over until that device releases the connection. Try toggling the headphones off/on nearby.
@@ -75,7 +84,21 @@ CI/CD (releases)
   - An MSIX package (signed with a CI self-signed certificate) for side-loading.
 - The ZIP includes `BtTakeover.exe`, `BtTakeover.config.sample.json`, and `README.md`.
 - The release also contains the MSIX and a `BtTakeover.cer` you can install to trust the package.
+ - A helper script `install-sideload.ps1` is included to install the certificate and MSIX in one step.
 
 MSIX install notes
 - Side-loading: install `BtTakeover.cer` to Local Machine > Trusted People, then double-click the `.msix` or use `Add-AppxPackage`.
 - Windows 11 S Mode: does not allow side-loading or running desktop EXEs. To run on S Mode, the app must be distributed via the Microsoft Store and signed with a Store certificate.
+ - One-step (admin PowerShell):
+   Set-ExecutionPolicy Bypass -Scope Process -Force; ./install-sideload.ps1
+
+Microsoft Store packaging & submission
+- Workflow: run `.github/workflows/store.yml` via “Run workflow” and provide a `version` (e.g., 1.2.3). It builds a Store-identity MSIX.
+- Required repository secrets:
+  - `STORE_IDENTITY_NAME` (reserved package identity, e.g., `12345YourOrg.BtTakeover`).
+  - `STORE_PUBLISHER` (exact Publisher string from Partner Center, e.g., `CN=Your Org, O=Your Org, L=City, S=State, C=US`).
+  - `STORE_PUBLISHER_DISPLAY_NAME` (friendly name shown in Store).
+  - Optional for auto-submit: `SUBMIT_TO_STORE` = `true`, `STORE_APP_ID` (GUID), `PARTNER_TENANT_ID`, `PARTNER_CLIENT_ID`, `PARTNER_CLIENT_SECRET` (Azure AD app for Partner Center).
+- Output: uploads a Store-ready `.msix` as a build artifact.
+- Optional auto-submit: if `SUBMIT_TO_STORE` is `true` and Partner Center secrets are set, the workflow attempts to create, upload, and commit a submission via the Partner Center API.
+- Note: API contracts can change; if submission fails, download the MSIX artifact and upload it manually in Partner Center.

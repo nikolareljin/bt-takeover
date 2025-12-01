@@ -1,0 +1,182 @@
+name: Store Package and Submit
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g., 1.2.3)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build-store:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      STORE_IDENTITY_NAME: ${{ secrets.STORE_IDENTITY_NAME }}
+      STORE_PUBLISHER: ${{ secrets.STORE_PUBLISHER }}
+      STORE_PUBLISHER_DISPLAY_NAME: ${{ secrets.STORE_PUBLISHER_DISPLAY_NAME }}
+      STORE_APP_ID: ${{ secrets.STORE_APP_ID }}
+      PARTNER_TENANT_ID: ${{ secrets.PARTNER_TENANT_ID }}
+      PARTNER_CLIENT_ID: ${{ secrets.PARTNER_CLIENT_ID }}
+      PARTNER_CLIENT_SECRET: ${{ secrets.PARTNER_CLIENT_SECRET }}
+      SUBMIT_TO_STORE: ${{ secrets.SUBMIT_TO_STORE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Ensure script-helpers present
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'script-helpers')) {
+            git clone https://github.com/nikolareljin/script-helpers.git script-helpers
+          }
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build app (win-x64)
+        run: |
+          dotnet restore src/BtTakeover.csproj
+          dotnet publish src/BtTakeover.csproj -c Release -r win-x64 \
+            /p:PublishSingleFile=true /p:SelfContained=true /p:IncludeNativeLibrariesForSelfExtract=true \
+            -o publish/win-x64
+
+      - name: Create Store MSIX
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ github.event.inputs.version }}'
+          if (-not $env:STORE_IDENTITY_NAME -or -not $env:STORE_PUBLISHER) {
+            throw 'STORE_IDENTITY_NAME and STORE_PUBLISHER secrets are required.'
+          }
+
+          $stage = Join-Path $PWD 'msix-store\stage'
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item -Recurse -Force publish/win-x64/* $stage/
+          New-Item -ItemType Directory -Force -Path (Join-Path $stage 'Images') | Out-Null
+
+          function New-Icon([string]$path, [int]$w, [int]$h) {
+            Add-Type -AssemblyName System.Drawing
+            $bmp = New-Object System.Drawing.Bitmap $w, $h
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.Clear([System.Drawing.Color]::FromArgb(0,122,204))
+            $font = New-Object System.Drawing.Font 'Segoe UI', ([float]($h * 0.36)), [System.Drawing.FontStyle]::Bold
+            $sf = New-Object System.Drawing.StringFormat
+            $sf.Alignment = 'Center'; $sf.LineAlignment = 'Center'
+            $g.DrawString('BT', $font, [System.Drawing.Brushes]::White, (New-Object System.Drawing.RectangleF(0,0,$w,$h)), $sf)
+            $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+            $g.Dispose(); $bmp.Dispose(); $font.Dispose(); $sf.Dispose()
+          }
+
+          New-Icon (Join-Path $stage 'Images\Square44x44Logo.png') 44 44
+          New-Icon (Join-Path $stage 'Images\Square150x150Logo.png') 150 150
+          New-Icon (Join-Path $stage 'Images\Square310x310Logo.png') 310 310
+          New-Icon (Join-Path $stage 'Images\Wide310x150Logo.png') 310 150
+
+          $publisherDisplay = if ($env:STORE_PUBLISHER_DISPLAY_NAME) { $env:STORE_PUBLISHER_DISPLAY_NAME } else { 'Publisher' }
+          $manifest = @"
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+         IgnorableNamespaces="uap desktop">
+  <Identity Name="${env:STORE_IDENTITY_NAME}"
+            Publisher="${env:STORE_PUBLISHER}"
+            Version="${version}.0"
+            ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>BtTakeover</DisplayName>
+    <PublisherDisplayName>${publisherDisplay}</PublisherDisplayName>
+    <Description>Scan/pair Bluetooth device and play WAV.</Description>
+    <Logo>Images\Square150x150Logo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Applications>
+    <Application Id="BtTakeover"
+                 Executable="BtTakeover.exe"
+                 EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="BtTakeover" Square150x150Logo="Images\Square150x150Logo.png" Square44x44Logo="Images\Square44x44Logo.png" Description="BtTakeover" BackgroundColor="#007ACC">
+        <uap:DefaultTile Square310x310Logo="Images\Square310x310Logo.png" Wide310x150Logo="Images\Wide310x150Logo.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <desktop:Extension Category="windows.fullTrustProcess" Executable="BtTakeover.exe" />
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities />
+</Package>
+"@
+          Set-Content -LiteralPath (Join-Path $stage 'AppxManifest.xml') -Value $manifest -Encoding UTF8
+
+          function Find-Tool([string]$name) {
+            $candidates = @(
+              "$name.exe",
+              "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\x64\\$name.exe",
+              "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.22621.0\\x64\\$name.exe"
+            )
+            foreach ($c in $candidates) { if (Get-Command $c -ErrorAction SilentlyContinue) { return (Get-Command $c).Source } }
+            throw "Tool not found: $name"
+          }
+
+          $makeappx = Find-Tool 'makeappx'
+          $msixName = "BtTakeover-$version-store.msix"
+          & $makeappx pack /d $stage /p $msixName | Write-Output
+          echo "STORE_MSIX=$msixName" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload Store MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-msix
+          path: ${{ env.STORE_MSIX }}
+
+      - name: Submit to Microsoft Store (optional)
+        if: ${{ env.SUBMIT_TO_STORE == 'true' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:STORE_APP_ID) { throw 'STORE_APP_ID secret is required for submission.' }
+          if (-not $env:PARTNER_TENANT_ID -or -not $env:PARTNER_CLIENT_ID -or -not $env:PARTNER_CLIENT_SECRET) {
+            throw 'Partner Center AAD secrets required (PARTNER_TENANT_ID, PARTNER_CLIENT_ID, PARTNER_CLIENT_SECRET).'
+          }
+
+          $tokenUrl = "https://login.microsoftonline.com/$env:PARTNER_TENANT_ID/oauth2/token"
+          $tokenResponse = Invoke-RestMethod -Method Post -Uri $tokenUrl -Body @{
+            grant_type = 'client_credentials'
+            client_id = $env:PARTNER_CLIENT_ID
+            client_secret = $env:PARTNER_CLIENT_SECRET
+            resource = 'https://manage.devcenter.microsoft.com'
+          } -ContentType 'application/x-www-form-urlencoded'
+
+          $headers = @{ Authorization = "Bearer $($tokenResponse.access_token)"; 'Content-Type' = 'application/json' }
+
+          $appId = $env:STORE_APP_ID
+          $createUrl = "https://manage.devcenter.microsoft.com/v1.0/my/applications/$appId/submissions"
+          $submission = Invoke-RestMethod -Method Post -Uri $createUrl -Headers $headers -Body '{}' -ErrorAction Stop
+          $submissionId = $submission.id
+          Write-Host "Created submission $submissionId"
+
+          # Find the package upload URL and upload the MSIX
+          $packageUploadUrl = $submission.fileUploadUrl
+          if (-not $packageUploadUrl) {
+            throw 'fileUploadUrl not found in submission response. Check Partner Center API version.'
+          }
+          $msixPath = Resolve-Path $env:STORE_MSIX
+          Write-Host "Uploading package $msixPath"
+          $bytes = [System.IO.File]::ReadAllBytes($msixPath)
+          Invoke-WebRequest -Method Put -Uri $packageUploadUrl -Body $bytes -Headers @{ 'x-ms-blob-type'='BlockBlob' } | Out-Null
+
+          # Commit the submission
+          $commitUrl = "https://manage.devcenter.microsoft.com/v1.0/my/applications/$appId/submissions/$submissionId/commit"
+          Invoke-RestMethod -Method Post -Uri $commitUrl -Headers $headers -Body '{}' -ErrorAction Stop | Out-Null
+          Write-Host 'Submission committed. Track status in Partner Center.'

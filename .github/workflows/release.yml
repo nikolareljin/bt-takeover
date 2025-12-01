@@ -13,6 +13,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Ensure script-helpers present
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'script-helpers')) {
+            git clone https://github.com/nikolareljin/script-helpers.git script-helpers
+          }
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
@@ -35,6 +44,7 @@ jobs:
           Copy-Item -Path publish/win-x64/BtTakeover.exe -Destination dist/
           if (Test-Path 'BtTakeover.config.sample.json') { Copy-Item 'BtTakeover.config.sample.json' dist/ }
           Copy-Item README.md dist/
+          if (Test-Path 'scripts/install-sideload.ps1') { Copy-Item 'scripts/install-sideload.ps1' dist/ }
           $tag = "$env:GITHUB_REF_NAME"
           $zip = "BtTakeover-$tag-win-x64.zip"
           Compress-Archive -Path dist/* -DestinationPath $zip
@@ -151,5 +161,6 @@ jobs:
             ${{ env.ZIP_NAME }}
             ${{ env.MSIX_NAME }}
             signing/BtTakeover.cer
+            scripts/install-sideload.ps1
           generate_release_notes: true
           token: ${{ secrets.GITHUB_TOKEN }}
