@@ -71,6 +71,23 @@ check_windowsdesktop_sdk() {
   [[ -n "$found" ]]
 }
 
+gen_icon() {
+  local svg="assets/logo/headphones-noise.svg"
+  local ico="src/Assets/AppIcon.ico"
+  if [[ ! -f "$svg" || -f "$ico" ]]; then return 0; fi
+  if command -v magick >/dev/null 2>&1; then
+    log_info "Generating Windows .ico from SVG via ImageMagick..."
+    magick convert -background none -density 384 "$svg" -define icon:auto-resize=256,128,64,48,32,16 "$ico" || true
+    if [[ -f "$ico" ]]; then log_info "Generated: $ico"; else log_warn "ICO generation failed."; fi
+  elif command -v convert >/dev/null 2>&1; then
+    log_info "Generating Windows .ico from SVG via convert..."
+    convert -background none -density 384 "$svg" -define icon:auto-resize=256,128,64,48,32,16 "$ico" || true
+    if [[ -f "$ico" ]]; then log_info "Generated: $ico"; else log_warn "ICO generation failed."; fi
+  else
+    log_warn "ImageMagick not found; skipping ICO generation."
+  fi
+}
+
 while (( "$#" )); do
   case "$1" in
     -c|--configuration) CONFIG="$2"; shift 2;;
@@ -86,6 +103,8 @@ if ! command -v dotnet >/dev/null 2>&1; then
   log_error "dotnet CLI not found. Install .NET 8 SDK."
   exit 1
 fi
+
+gen_icon
 
 log_info "Restoring packages..."
 dotnet restore src/BtTakeover.csproj

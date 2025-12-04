@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Background circle -->
+    <path
+        android:fillColor="#222222"
+        android:pathData="M54,6 A48,48 0 1,1 54,102 A48,48 0 1,1 54,6 Z" />
+    <!-- Headband -->
+    <path
+        android:fillColor="#00E1FF"
+        android:pathData="M27,50 a27,27 0 0,1 54,0 l-6,0 a21,21 0 0,0 -42,0 z" />
+    <!-- Left cup -->
+    <path
+        android:fillColor="#EAEAEA"
+        android:pathData="M24,54 h10 a10,12 0 0,1 0,24 h-10 z" />
+    <!-- Right cup -->
+    <path
+        android:fillColor="#EAEAEA"
+        android:pathData="M74,54 h10 v24 h-10 a10,12 0 0,1 0,-24 z" />
+    <!-- Noise waves -->
+    <path
+        android:strokeColor="#00E1FF"
+        android:strokeWidth="2"
+        android:fillColor="#00000000"
+        android:pathData="M42,72 c2,-4 4,-4 6,0 2,4 4,4 6,0 2,-4 4,-4 6,0" />
+    <path
+        android:strokeColor="#00E1FF"
+        android:strokeWidth="2"
+        android:fillColor="#00000000"
+        android:pathData="M40,78 c3,-5 5,-5 8,0 3,5 5,5 8,0 3,-5 5,-5 8,0" />
+    <path
+        android:strokeColor="#00E1FF"
+        android:strokeWidth="1.5"
+        android:fillColor="#00000000"
+        android:pathData="M44,66 c1.5,-3 3,-3 4.5,0 1.5,3 3,3 4.5,0 1.5,-3 3,-3 4.5,0" />
+</vector>
+

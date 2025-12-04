@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BT Takeover</string>
+    <string name="play_max">Play (Max Volume)</string>
+    <string name="stop">Stop</string>
+    <string name="loop">Loop</string>
+    <string name="volume_label">Route: current device (Bluetooth if connected)</string>
+    <string name="status_idle">Status: Idle</string>
+    <string name="status_playing">Status: Playing white noise</string>
+    <string name="device_id_label">Device ID or MAC</string>
+    <string name="device_hint">e.g. 00:11:22:33:44:55 or name</string>
+    <string name="browse">Browse</string>
+    <string name="scan_pair">Scan &amp; Check</string>
+    <string name="pick_from_paired">Pick from paired</string>
+    <string name="open_bt_settings">Open Bluetooth settings</string>
+    <string name="audio_file_label">Audio file</string>
+    <string name="choose_audio">Choose MP3/WAV</string>
+    <string name="no_audio_chosen">No audio selected (falls back to noise)</string>
+    <string name="connected_to">Connected to: %1$s</string>
+    <string name="not_connected">Not connected. Open Bluetooth settings and connect.</string>
+    <string name="source_label">Source</string>
+    <string name="white_noise_option">White noise (default)</string>
+    <string name="audio_file_option">Audio file</string>
+    <string name="select_audio_prompt">Please choose an audio file first.</string>
+</resources>

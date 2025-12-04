@@ -1,19 +1,17 @@
-bt-takeover — Bluetooth takeover + WAV blast (Windows)
+bt-takeover — Bluetooth takeover + WAV blast (Windows + Android)
 
 Overview
 - Minimal Windows app to help locate and take back your own Bluetooth headphones by scanning/pairing to a known device ID/MAC and playing a WAV file to them at maximum device volume.
-- Works as a portable app (publish single-file, copy to USB). Designed for Windows 11.
+- Android companion app (Android 15+) that routes audio to the current media output (Bluetooth if connected) and plays a chosen MP3/WAV file or white noise at max media volume.
+- Windows: works as a portable app (single-file publish). Android: ships as an APK.
 
 Important notes
 - Only use this on devices you own or are authorized to access. Headphones connected to another phone/PC may refuse connection until that device disconnects.
 - Loud playback can damage hearing. Confirm volume before blasting and use responsibly.
 
 Features
-- Scan for a Bluetooth device by MAC address or by name snippet; also accepts common Windows DeviceId strings (extracts MAC if present).
-- Attempts pairing if not already paired (SSP / no PIN if supported).
-- Plays a given .wav file directly to the device’s audio endpoint via WASAPI (no need to change the system default).
-- Sets the device endpoint volume to 100% before playback.
-- Loop playback toggle with in-app Stop control.
+- Windows: scan by MAC or name snippet; attempts pairing if supported; plays a .wav via WASAPI to the device endpoint; forces endpoint volume to 100%; loop toggle.
+- Android: choose MP3/WAV or fall back to white noise; loop toggle; stores device ID/MAC and selected audio; checks A2DP connection to your target device and shows routing hint. Note: standard Android apps cannot force A2DP pairing/connection; pair/connect from system UI first.
 
 Usage
 1) Build (Windows, .NET 8 SDK required):
@@ -22,12 +20,12 @@ Usage
      - `dotnet restore`
      - `dotnet build -c Release`
 
-2) Portable (USB) publish:
+2) Portable (USB) publish (EXE):
    - From `bt-takeover/src` on Windows:
      - `dotnet publish -c Release -r win-x64 /p:PublishSingleFile=true /p:SelfContained=true -o ..\publish`
    - Copy the contents of `bt-takeover\publish` to your USB stick and run `BtTakeover.exe` from there.
 
-3) Run:
+3) Run (Windows):
    - Launch `BtTakeover.exe`.
    - Paste your device identifier in “Device ID or MAC”. Examples:
      - MAC: `00:1A:7D:DA:71:13` or `001A7DDA7113`
@@ -41,6 +39,23 @@ Build scripts (cross‑platform)
 - Linux/macOS: `./build.sh` (options: `-c Debug|Release`, `--publish true|false`, `-r win-x64`)
 - Windows PowerShell: `./build.ps1` (params: `-Configuration Debug|Release`, `-Publish:$true|$false`, `-Runtime win-x64`)
 - Both scripts auto‑use `script-helpers` if present (git submodule `git@github.com:nikolareljin/script-helpers.git`).
+
+Android build quickstart
+- Ensure Android SDK installed with API 35 (Android 15), and Java 17+ is on PATH.
+- Use a local Gradle installation (no wrapper committed to repo): `gradle --version` should work.
+- Commands:
+  - `cd android`
+  - `gradle :app:assembleDebug` → `android/app/build/outputs/apk/debug/app-debug.apk`
+  - `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`
+  - For release: `gradle :app:assembleRelease` then sign/align with your keystore.
+
+Android usage
+- Pair/connect your headphones from Android Settings first.
+- Enter your Device ID/MAC (or a name snippet like WH-1000XM4) and tap “Scan & Check” to verify connection.
+- Optionally, tap “Pick from paired” to select from your bonded devices, or “Open Bluetooth settings” to pair/connect.
+- Tap “Browse” to pick an MP3/WAV (persisted). If none selected, the app plays white noise.
+- Choose a source: White noise (default) or Audio file. If you pick Audio file, select one using Browse.
+- Tap “Play (Max Volume)” to start; use “Loop” to repeat; tap Stop to end.
 
 Submodules
 - Initialize locally: `git submodule update --init --recursive`
@@ -102,3 +117,33 @@ Microsoft Store packaging & submission
 - Output: uploads a Store-ready `.msix` as a build artifact.
 - Optional auto-submit: if `SUBMIT_TO_STORE` is `true` and Partner Center secrets are set, the workflow attempts to create, upload, and commit a submission via the Partner Center API.
 - Note: API contracts can change; if submission fails, download the MSIX artifact and upload it manually in Partner Center.
+4) Build APK (Android 15+):
+   - Prereqs: Android SDK/NDK and Java 17+; a local Gradle installation (no wrapper committed).
+   - From repo root:
+     - `cd android`
+     - Ensure compileSdk/targetSdk 35 are available in your SDK Manager.
+     - Build debug: `gradle :app:assembleDebug`
+       - Output: `android/app/build/outputs/apk/debug/app-debug.apk`
+     - Build release: `gradle :app:assembleRelease`
+       - Output: `android/app/build/outputs/apk/release/app-release-unsigned.apk`
+     - Sign & align release (example):
+       - `apksigner sign --ks your.keystore --out app-release.apk android/app/build/outputs/apk/release/app-release-unsigned.apk`
+   - Install: `adb install -r path/to/app-debug.apk`
+
+Android usage
+- Pair/connect your headphones from Android Settings first.
+- Open BT Takeover and tap “Play (Max Volume)”. Audio routes to the current media output; if a Bluetooth A2DP device is connected, it will receive the noise. Tap Stop to end.
+
+App icon
+- A simple “headphones with noise” logo is included as an SVG at `assets/logo/headphones-noise.svg` and used by Android as a vector.
+- Windows EXE uses the same icon via `src/Assets/AppIcon.ico` (committed in the repo and referenced in the project).
+- If you ever need to re-generate the ICO from the SVG, build scripts can help (optional):
+  - Windows: install ImageMagick, then run `./build.ps1` (will generate if missing).
+  - Linux/macOS: install ImageMagick, then run `./build.sh` (will generate if missing).
+  - Manual command example (ImageMagick):
+    `convert -background none -density 384 assets/logo/headphones-noise.svg -define icon:auto-resize=256,128,64,48,32,16 src/Assets/AppIcon.ico`
+  - Visual Studio users can also set the icon in Project Properties; the `.csproj` references the ICO (and will pick it up if replaced).
+
+Android compatibility
+- minSdk 23 (Android 6.0), targetSdk 35. Some features (permissions, device routing APIs) adjust based on OS version.
+- The app cannot pair/connect A2DP programmatically (restricted). It checks whether your configured device is currently connected; use system UI to pair/connect.
