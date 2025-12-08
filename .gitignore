@@ -1,13 +1,24 @@
-local.properties
-.sdk/
-.gradle/
-.gradle-*/
-app/build/
-bundletool-all-*.jar
-keystore.jks
-keystore.properties
+android/local.properties
+android/.sdk/
+android/.gradle/
+android/.gradle-*/
+android/app/build/
+android/bundletool-all-*.jar
+android/keystore.jks
+android/keystore.properties
+android/.idea/
+android/**/*.iml
+
+# Android build outputs (catch-all)
+android/**/build/
 
 # .NET build outputs
 src/**/bin/
 src/**/obj/
 src/**/*.csproj.user
+
+# .NET publish outputs
+publish/
+
+# Visual Studio user data
+.vs/
