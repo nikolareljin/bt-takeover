@@ -1,0 +1,13 @@
+local.properties
+.sdk/
+.gradle/
+.gradle-*/
+app/build/
+bundletool-all-*.jar
+keystore.jks
+keystore.properties
+
+# .NET build outputs
+src/**/bin/
+src/**/obj/
+src/**/*.csproj.user

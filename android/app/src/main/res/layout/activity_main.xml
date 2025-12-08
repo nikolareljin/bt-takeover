@@ -122,6 +122,19 @@
             android:layout_marginTop="8dp">
 
             <Button
+                android:id="@+id/btnTakeOver"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/take_over" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <Button
                 android:id="@+id/btnPick"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -139,6 +152,40 @@
                 android:layout_weight="1"
                 android:text="@string/open_bt_settings" />
         </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <Button
+                android:id="@+id/btnStartBgScan"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/bg_scan_start" />
+
+            <Space
+                android:layout_width="12dp"
+                android:layout_height="wrap_content" />
+
+            <Button
+                android:id="@+id/btnStopBgScan"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/bg_scan_stop" />
+        </LinearLayout>
+
+        <CheckBox
+            android:id="@+id/chkAutoSilence"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/auto_silence"
+            android:paddingTop="8dp"
+            android:textColor="@color/fg"
+            android:checked="false" />
 
         <TextView
             android:layout_width="match_parent"

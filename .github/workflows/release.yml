@@ -3,7 +3,7 @@ name: Release Windows Binary
 on:
   push:
     tags:
-      - 'v*'
+      - '*.*.*'
 
 jobs:
   build-release:
@@ -55,8 +55,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $tag = "$env:GITHUB_REF_NAME"
-          if ($tag.StartsWith('v')) { $ver = $tag.Substring(1) } else { $ver = $tag }
-          if (-not ($ver -match '^\d+\.\d+\.\d+')) { $ver = '1.0.0' }
+          $ver = $tag
+          if (-not ($ver -match '^\d+\.\d+\.\d+')) { throw "Tag must be semver X.Y.Z. Got: $tag" }
           $msixVersion = "$ver.0"
 
           $stage = Join-Path $PWD 'msix\stage'

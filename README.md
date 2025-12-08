@@ -49,6 +49,24 @@ Android build quickstart
   - `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`
   - For release: `gradle :app:assembleRelease` then sign/align with your keystore.
 
+Android Play Store automation
+- Tag-driven release: pushing a tag `X.Y.Z` triggers `.github/workflows/android-play-release.yml` to:
+  - Compute `versionName=X.Y.Z` and `versionCode=(X*10000 + Y*100 + Z)`.
+  - Build a release App Bundle (`.aab`).
+  - Sign the bundle with your upload keystore.
+  - Create a GitHub Release and attach the AAB.
+  - Upload the AAB to Google Play (track: internal).
+- Required GitHub Secrets:
+  - `ANDROID_KEYSTORE_BASE64`: Base64-encoded JKS keystore for signing uploads.
+  - `ANDROID_KEYSTORE_PASSWORD`: Keystore password.
+  - `ANDROID_KEY_ALIAS`: Key alias.
+  - `ANDROID_KEY_PASSWORD`: Key password.
+  - `PLAY_SERVICE_ACCOUNT_JSON`: Contents of the Google Play Developer API service account JSON.
+- Package name: `com.bttakeover.app` (change in `android/app/build.gradle` and workflow env if needed).
+- Default tag-based deploy goes to `internal`. You can also run the workflow manually (Actions → Android Play Store Release → Run) and provide:
+  - `version` (X.Y.Z)
+  - `track` (internal, beta, production)
+
 Android usage
 - Pair/connect your headphones from Android Settings first.
 - Enter your Device ID/MAC (or a name snippet like WH-1000XM4) and tap “Scan & Check” to verify connection.
@@ -94,7 +112,7 @@ Configuration file (optional)
   }
 
 CI/CD (releases)
-- Pushing a tag like `v1.2.3` builds:
+- Pushing a tag like `1.2.3` builds:
   - A Windows 11 (win-x64) self-contained single-file EXE ZIP.
   - An MSIX package (signed with a CI self-signed certificate) for side-loading.
 - The ZIP includes `BtTakeover.exe`, `BtTakeover.config.sample.json`, and `README.md`.
