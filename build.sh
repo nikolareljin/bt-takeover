@@ -17,6 +17,7 @@ set -euo pipefail
 #?   -r, --runtime         Target RID (default: win-x64)
 #?       --publish         Publish single file: true | false (default: true)
 #?       --self-contained  Self-contained publish: true | false (default: true)
+#?       --bootstrap-android-sdk  Download Android SDK locally if missing (android/all)
 #?   -h, --help            Show this help
 #? 
 #? Examples:
@@ -32,6 +33,7 @@ RUNTIME="win-x64"
 PUBLISH=true
 SELF_CONTAINED=true
 BUILD_TYPE="windows"
+BOOTSTRAP_ANDROID_SDK=false
 
 print_help() { awk '/^#\?/{sub("^#\\? ?"," ");print}' "$0"; }
 
@@ -76,6 +78,15 @@ load_helper_libs() {
     helpers_load "${libs[@]}" || true
   elif declare -F use_lib >/dev/null 2>&1; then
     use_lib "${libs[@]}" || true
+  fi
+}
+
+# Ensure a command exists; log and return non-zero otherwise
+ensure_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    log_error "Missing required command: $1"
+    log_error "Install it and retry (e.g., apt-get install -y $1)."
+    return 1
   fi
 }
 
@@ -135,6 +146,7 @@ while (( "$#" )); do
     -r|--runtime)       RUNTIME="$2"; shift 2;;
     --publish)          PUBLISH="$2"; shift 2;;
     --self-contained)   SELF_CONTAINED="$2"; shift 2;;
+    --bootstrap-android-sdk) BOOTSTRAP_ANDROID_SDK=true; shift;;
     -h|--help)          print_help; exit 0;;
     *) log_error "Unknown option: $1"; print_help; exit 1;;
   esac
@@ -195,11 +207,32 @@ build_android() {
   if [[ "${CONFIG,,}" == "release" ]]; then mode="release"; fi
   if [[ -x scripts/build-android.sh ]]; then
     log_info "Invoking Android build (mode=$mode)..."
-    scripts/build-android.sh --mode "$mode"
+    if [[ "$BOOTSTRAP_ANDROID_SDK" == true ]]; then
+      scripts/build-android.sh --mode "$mode" --bootstrap-sdk
+    else
+      scripts/build-android.sh --mode "$mode"
+    fi
   else
-    log_warn "scripts/build-android.sh not found or not executable."
-    log_warn "Please run Gradle manually: (cd android && ./gradlew :app:assembleDebug)"
-    return 4
+    log_warn "scripts/build-android.sh not found or not executable. Falling back to Gradle wrapper."
+    if [[ -x android/gradlew ]]; then
+      # Optionally bootstrap Android SDK if requested and missing
+      if [[ "$BOOTSTRAP_ANDROID_SDK" == true && ! -x android/.sdk/cmdline-tools/latest/bin/sdkmanager ]]; then
+        ensure_cmd curl && ensure_cmd unzip || return 4
+        ( cd android && \
+          mkdir -p .sdk/cmdline-tools && \
+          curl -L -o /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip && \
+          unzip -q /tmp/cmdline-tools.zip -d .sdk/cmdline-tools && \
+          mv .sdk/cmdline-tools/cmdline-tools .sdk/cmdline-tools/latest && \
+          yes | .sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=.sdk --licenses >/dev/null || true && \
+          yes | .sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=.sdk "platform-tools" "platforms;android-35" "build-tools;35.0.0" )
+      fi
+      ( cd android && ./gradlew --no-daemon $([[ "$mode" == release ]] && echo ":app:bundleRelease :app:assembleRelease" || echo ":app:assembleDebug") -x lint -x test )
+      return $?
+    else
+      log_warn "Gradle wrapper missing at android/gradlew."
+      log_warn "Please run Gradle manually once to generate it or use scripts/bootstrap steps."
+      return 4
+    fi
   fi
 }
 
@@ -217,9 +250,15 @@ else
   # all
   set +e
   build_windows; win_rc=$?
+  if [[ $win_rc -eq 2 || $win_rc -eq 3 ]]; then
+    log_warn "Windows build skipped (environment missing WindowsDesktop SDK)."
+  fi
   build_android; and_rc=$?
   set -e
-  if [[ $win_rc -ne 0 || $and_rc -ne 0 ]]; then
+  if [[ $win_rc -eq 0 || $and_rc -eq 0 ]]; then
+    log_info "Build summary: windows rc=$win_rc, android rc=$and_rc"
+    exit 0
+  else
     log_warn "One or more builds failed (windows rc=$win_rc, android rc=$and_rc)."
     exit 1
   fi

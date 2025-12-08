@@ -13,6 +13,7 @@ set -euo pipefail
 #? Options:
 #?   --mode            Build mode: debug | release (default: debug)
 #?   --no-skip-tests  Run tests (by default tests are skipped)
+#?   --bootstrap-sdk  Download and set up Android SDK locally if missing
 #?   -h, --help       Show this help
 #? 
 #? Examples:
@@ -25,11 +26,13 @@ cd "$ROOT_DIR"
 # Option parsing (simple)
 MODE="debug"
 SKIP_TESTS=true
+BOOTSTRAP_SDK=false
 print_help(){ awk '/^#\?/{sub("^#\\? ?"," ");print}' "$0"; }
 while (( "$#" )); do
   case "$1" in
     --mode) MODE="${2,,}"; shift 2;;
     --no-skip-tests) SKIP_TESTS=false; shift;;
+    --bootstrap-sdk) BOOTSTRAP_SDK=true; shift;;
     -h|--help) print_help; exit 0;;
     *) echo "Unknown arg: $1"; print_help; exit 1;;
   esac
@@ -50,6 +53,40 @@ export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$PWD/.sdk}"
 if [[ ! -f gradlew ]]; then
   echo "Gradle wrapper missing in android/. Aborting." >&2
   exit 1
+fi
+
+# Require a command (with friendly message)
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "[ANDROID] Missing required command: $1" >&2
+    echo "           Please install it (e.g., apt-get install -y $1) and retry." >&2
+    exit 1
+  fi
+}
+
+bootstrap_sdk() {
+  local sdk="$ANDROID_SDK_ROOT"
+  local tools_bin="$sdk/cmdline-tools/latest/bin"
+  if [[ -x "$tools_bin/sdkmanager" ]]; then return 0; fi
+  echo "[ANDROID] Bootstrapping Android SDK into $sdk ..."
+  require_cmd curl
+  require_cmd unzip
+  require_cmd java
+  mkdir -p "$sdk/cmdline-tools"
+  local zip="/tmp/cmdline-tools.zip"
+  curl -L -o "$zip" https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+  unzip -q "$zip" -d "$sdk/cmdline-tools"
+  mv "$sdk/cmdline-tools/cmdline-tools" "$sdk/cmdline-tools/latest"
+  export PATH="$tools_bin:$PATH"
+  yes | sdkmanager --sdk_root="$sdk" --licenses >/dev/null || true
+  yes | sdkmanager --sdk_root="$sdk" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+}
+
+# Optionally initialize SDK if missing
+if [[ "$BOOTSTRAP_SDK" == true ]]; then
+  if [[ ! -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]]; then
+    bootstrap_sdk
+  fi
 fi
 
 TASKS=(":app:assembleDebug")
