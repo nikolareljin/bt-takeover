@@ -9,6 +9,8 @@
     <!-- For portable publish guidance; actual publish command in README -->
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
+    <!-- Use ICO generated from assets/logo/headphones-noise.svg if present -->
+    <ApplicationIcon Condition="Exists('Assets/AppIcon.ico')">Assets/AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="NAudio" Version="2.2.1" />

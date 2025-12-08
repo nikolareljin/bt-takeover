@@ -1,0 +1,63 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.bttakeover.app'
+    compileSdkVersion 35
+
+    defaultConfig {
+        applicationId 'com.bttakeover.app'
+        // Lower minSdk for broader device support; features gated in code
+        minSdkVersion 23
+        targetSdkVersion 35
+        // Version comes from tag via env when building in CI
+        versionCode (System.getenv('APP_VERSION_CODE') != null ? Integer.parseInt(System.getenv('APP_VERSION_CODE')) : 1)
+        versionName (System.getenv('APP_VERSION_NAME') ?: '1.0.0')
+    }
+
+    signingConfigs {
+        release {
+            def props = new Properties()
+            def file = rootProject.file("keystore.properties")
+            if (file.exists()) {
+                file.withInputStream { props.load(it) }
+            }
+            // Fallbacks allow using the temporary workspace keystore
+            storeFile = props.getProperty('storeFile') ? rootProject.file(props.getProperty('storeFile')) : rootProject.file("keystore.jks")
+            storePassword = props.getProperty('storePassword', System.getenv('STORE_PASSWORD') ?: "")
+            keyAlias = props.getProperty('keyAlias', System.getenv('KEY_ALIAS') ?: "")
+            keyPassword = props.getProperty('keyPassword', System.getenv('KEY_PASSWORD') ?: "")
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+        debug {
+            // Keep defaults
+        }
+    }
+
+    buildFeatures {
+        viewBinding true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+}

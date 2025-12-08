@@ -45,6 +45,33 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
   exit 1
 }
 
+function New-AppIcon {
+  try {
+    $svg = Join-Path (Get-Location) 'assets/logo/headphones-noise.svg'
+    $ico = Join-Path (Get-Location) 'src/Assets/AppIcon.ico'
+    if (-not (Test-Path $svg)) { return }
+    if (Test-Path $ico) { return }
+    if (Get-Command magick -ErrorAction SilentlyContinue) {
+      Log-Info "Generating Windows .ico from SVG via ImageMagick..."
+      & magick convert -background none -density 384 `
+        "$svg" -define icon:auto-resize=256,128,64,48,32,16 `
+        "$ico" | Out-Null
+      if (Test-Path $ico) { Log-Info "Generated: $ico" } else { Log-Warn 'ICO generation failed.' }
+    } elseif (Get-Command convert.exe -ErrorAction SilentlyContinue) {
+      Log-Info "Generating Windows .ico from SVG via convert.exe..."
+      & convert.exe -background none -density 384 `
+        "$svg" -define icon:auto-resize=256,128,64,48,32,16 `
+        "$ico" | Out-Null
+      if (Test-Path $ico) { Log-Info "Generated: $ico" } else { Log-Warn 'ICO generation failed.' }
+    } else {
+      Log-Warn 'ImageMagick not found; skipping ICO generation. Install ImageMagick to auto-generate AppIcon.ico.'
+    }
+  } catch {
+    Log-Warn "ICO generation error: $_"
+  }
+}
+
+New-AppIcon
 Log-Info 'Restoring packages...'
 dotnet restore 'src/BtTakeover.csproj'
 
@@ -62,4 +89,3 @@ if ($Publish) {
 } else {
   Log-Info 'Publish disabled.'
 }
-
