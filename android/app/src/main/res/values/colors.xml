@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_bg">#1A1A1A</color>
+    <color name="primary">#0A84FF</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="bg">#111111</color>
+    <color name="fg">#EAEAEA</color>
+    <color name="accent">#00E1FF</color>
+    <color name="error">#FF5252</color>
+</resources>

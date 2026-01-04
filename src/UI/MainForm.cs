@@ -22,6 +22,11 @@ public partial class MainForm : Form
     public MainForm()
     {
         InitializeComponent();
+        try
+        {
+            Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
+        }
+        catch { /* ignore */ }
     }
 
     private void Log(string message)
