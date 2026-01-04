@@ -4,6 +4,7 @@ Overview
 - Minimal Windows app to help locate and take back your own Bluetooth headphones by scanning/pairing to a known device ID/MAC and playing a WAV file to them at maximum device volume.
 - Android companion app (Android 15+) that routes audio to the current media output (Bluetooth if connected) and plays a chosen MP3/WAV file or white noise at max media volume.
 - Windows: works as a portable app (single-file publish). Android: ships as an APK.
+- Docs: see `docs/README.md` for feature details and external references.
 
 Important notes
 - Only use this on devices you own or are authorized to access. Headphones connected to another phone/PC may refuse connection until that device disconnects.
@@ -42,12 +43,12 @@ Build scripts (cross‑platform)
 
 Android build quickstart
 - Ensure Android SDK installed with API 35 (Android 15), and Java 17+ is on PATH.
-- Use a local Gradle installation (no wrapper committed to repo): `gradle --version` should work.
+- Use the Gradle wrapper from `android/gradlew`.
 - Commands:
   - `cd android`
-  - `gradle :app:assembleDebug` → `android/app/build/outputs/apk/debug/app-debug.apk`
-  - `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`
-  - For release: `gradle :app:assembleRelease` then sign/align with your keystore.
+  - `./gradlew :app:assembleDebug` → `android/app/build/outputs/apk/debug/app-debug.apk`
+  - `./gradlew installDebug` (installs to a connected device via adb)
+  - For release: `./gradlew :app:assembleRelease` then sign/align with your keystore.
 
 Android Play Store automation
 - Tag-driven release: pushing a tag `X.Y.Z` triggers `.github/workflows/android-play-release.yml` to:
@@ -136,17 +137,17 @@ Microsoft Store packaging & submission
 - Optional auto-submit: if `SUBMIT_TO_STORE` is `true` and Partner Center secrets are set, the workflow attempts to create, upload, and commit a submission via the Partner Center API.
 - Note: API contracts can change; if submission fails, download the MSIX artifact and upload it manually in Partner Center.
 4) Build APK (Android 15+):
-   - Prereqs: Android SDK/NDK and Java 17+; a local Gradle installation (no wrapper committed).
+   - Prereqs: Android SDK/NDK and Java 17+; Gradle wrapper available at `android/gradlew`.
    - From repo root:
      - `cd android`
      - Ensure compileSdk/targetSdk 35 are available in your SDK Manager.
-     - Build debug: `gradle :app:assembleDebug`
+     - Build debug: `./gradlew :app:assembleDebug`
        - Output: `android/app/build/outputs/apk/debug/app-debug.apk`
-     - Build release: `gradle :app:assembleRelease`
+     - Build release: `./gradlew :app:assembleRelease`
        - Output: `android/app/build/outputs/apk/release/app-release-unsigned.apk`
      - Sign & align release (example):
        - `apksigner sign --ks your.keystore --out app-release.apk android/app/build/outputs/apk/release/app-release-unsigned.apk`
-   - Install: `adb install -r path/to/app-debug.apk`
+   - Install: `./gradlew installDebug` or `adb install -r path/to/app-debug.apk`
 
 Android usage
 - Pair/connect your headphones from Android Settings first.

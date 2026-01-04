@@ -22,3 +22,6 @@ publish/
 
 # Visual Studio user data
 .vs/
+.idea/
+
+

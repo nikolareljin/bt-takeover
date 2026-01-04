@@ -195,7 +195,7 @@
             android:paddingTop="12dp"
             android:text="@string/source_label" />
 
-        <LinearLayout
+        <RadioGroup
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -216,7 +216,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/audio_file_option"
                 android:textColor="@color/fg" />
-        </LinearLayout>
+        </RadioGroup>
 
         <TextView
             android:layout_width="match_parent"
