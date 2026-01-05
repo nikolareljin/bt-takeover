@@ -6,6 +6,9 @@ Overview
 - Windows: works as a portable app (single-file publish). Android: ships as an APK.
 - Docs: see `docs/README.md` for feature details and external references.
 
+<img width="1080" height="2220" alt="Screenshot_20260103_221837" src="https://github.com/user-attachments/assets/882c056d-b26d-4739-8069-0d65d64e652b" />
+
+
 Important notes
 - Only use this on devices you own or are authorized to access. Headphones connected to another phone/PC may refuse connection until that device disconnects.
 - Loud playback can damage hearing. Confirm volume before blasting and use responsibly.
