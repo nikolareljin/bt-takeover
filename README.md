@@ -1,4 +1,6 @@
-bt-takeover — Bluetooth takeover + WAV blast (Windows + Android)
+# bt-takeover 
+
+## Bluetooth takeover + WAV blast (Windows + Android)
 
 Overview
 - Minimal Windows app to help locate and take back your own Bluetooth headphones by scanning/pairing to a known device ID/MAC and playing a WAV file to them at maximum device volume.
