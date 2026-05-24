@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using InTheHand.Net;
 using InTheHand.Net.Bluetooth;
 using InTheHand.Net.Sockets;
 
@@ -11,7 +12,7 @@ public class BluetoothHelper
     {
         using var client = new BluetoothClient();
         // Discover paired & unpaired; allow caching remembered devices too.
-        var devices = client.DiscoverDevices(255, authenticated: true, remembered: true, unknown: true);
+        var devices = client.DiscoverDevices(255);
 
         if (!string.IsNullOrWhiteSpace(macOrNull) && TryParseAddress(macOrNull!, out var addr))
         {
