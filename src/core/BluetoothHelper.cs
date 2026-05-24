@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using InTheHand.Net;
 using InTheHand.Net.Bluetooth;
 using InTheHand.Net.Sockets;
 
