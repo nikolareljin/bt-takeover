@@ -171,3 +171,11 @@ App icon
 Android compatibility
 - minSdk 23 (Android 6.0), targetSdk 35. Some features (permissions, device routing APIs) adjust based on OS version.
 - The app cannot pair/connect A2DP programmatically (restricted). It checks whether your configured device is currently connected; use system UI to pair/connect.
+
+---
+
+## Clone traffic
+
+![Clone traffic](https://raw.githubusercontent.com/nikolareljin/stats/main/charts/bt-takeover.svg)
+
+_Updated daily. Total and unique cloners over the last 14 days._
